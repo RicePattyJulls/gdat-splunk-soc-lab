@@ -1,0 +1,4 @@
+# Macros y lookups visibles desde cualquier app (también desde Search & Reporting)
+[]
+access = read : [ * ], write : [ admin ]
+export = system

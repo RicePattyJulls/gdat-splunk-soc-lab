@@ -1,0 +1,14 @@
+# nombre: GDAT 05 - Creacion sospechosa de recursos
+# kql: gdat-azure-sentinel-lab/biceps/queries/05-creacion-recursos.kql
+# mitre: T1578.002
+# tactica: DefenseEvasion
+# severidad: medium
+# cron: 0 * * * *
+# ventana: -62m@m -2m@m
+# descripcion: Una identidad crea o modifica 5 o mas recursos distintos en una hora. Tecnica secundaria T1078.004 (cuentas cloud). Ojo: endswith de KQL no distingue mayusculas y like() de SPL si, por eso el lower().
+index=gdat_cloud sourcetype=gdat:azure:activity ActivityStatusValue=Success
+| where like(lower(OperationNameValue), "%/write")
+| eval CuentaNormalizada=lower(mvindex(split(Caller, "@"), 0)), IPOrigen=CallerIpAddress
+| stats dc(ResourceId) AS Recursos count AS Operaciones values(OperationNameValue) AS Ejemplos max(_time) AS Ultimo by CuentaNormalizada IPOrigen
+| where Recursos >= `gdat_umbral_recursos`
+| eval _time=Ultimo, mitre_secundaria="T1078.004"

@@ -1,0 +1,139 @@
+<dashboard version="2" theme="dark">
+  <label>GDAT - Salud de la ingesta</label>
+  <description>Que llega, cuanto tarda y si las busquedas programadas corren.</description>
+  <definition><![CDATA[
+{
+  "title": "GDAT - Salud de la ingesta",
+  "description": "Que llega, cuanto tarda y si las busquedas programadas corren.",
+  "inputs": {
+    "input_rango": {
+      "type": "input.timerange",
+      "title": "Rango de tiempo",
+      "options": {
+        "token": "rango",
+        "defaultValue": "-24h@h,now"
+      }
+    }
+  },
+  "defaults": {
+    "dataSources": {
+      "ds.search": {
+        "options": {
+          "queryParameters": {
+            "earliest": "$rango.earliest$",
+            "latest": "$rango.latest$"
+          }
+        }
+      }
+    }
+  },
+  "dataSources": {
+    "ds_ultimo": {
+      "type": "ds.search",
+      "options": {
+        "query": "| tstats count latest(_time) AS ultimo WHERE index=gdat_* BY index sourcetype | eval minutos_desde_ultimo=round((now()-ultimo)/60, 1), ultimo=strftime(ultimo, \"%F %T\")"
+      }
+    },
+    "ds_volumen": {
+      "type": "ds.search",
+      "options": {
+        "query": "| tstats count WHERE index=gdat_* BY _time index span=5m | timechart span=5m sum(count) AS eventos by index"
+      }
+    },
+    "ds_latencia": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=gdat_web OR index=gdat_win OR index=gdat_cloud | eval latencia_s=_indextime-_time | stats count avg(latencia_s) AS media_s perc95(latencia_s) AS p95_s max(latencia_s) AS max_s by sourcetype | eval media_s=round(media_s, 1), p95_s=round(p95_s, 1)"
+      }
+    },
+    "ds_programadas": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=_internal sourcetype=scheduler savedsearch_name=\"GDAT*\" | stats count AS ejecuciones sum(result_count) AS resultados latest(status) AS ultimo_estado latest(_time) AS ultima by savedsearch_name | eval ultima=strftime(ultima, \"%F %T\") | sort savedsearch_name"
+      }
+    }
+  },
+  "visualizations": {
+    "v_ultimo": {
+      "type": "splunk.table",
+      "title": "Ultimo evento por fuente",
+      "dataSources": {
+        "primary": "ds_ultimo"
+      },
+      "description": "Equivale a validate-soc.sh: que cada tabla reciba datos"
+    },
+    "v_volumen": {
+      "type": "splunk.column",
+      "title": "Eventos por indice",
+      "dataSources": {
+        "primary": "ds_volumen"
+      }
+    },
+    "v_latencia": {
+      "type": "splunk.table",
+      "title": "Latencia de ingesta (_indextime - _time)",
+      "dataSources": {
+        "primary": "ds_latencia"
+      },
+      "description": "Con datos --historico la latencia es alta a proposito: son eventos con fecha pasada"
+    },
+    "v_programadas": {
+      "type": "splunk.table",
+      "title": "Ejecuciones de las busquedas GDAT",
+      "dataSources": {
+        "primary": "ds_programadas"
+      }
+    }
+  },
+  "layout": {
+    "type": "grid",
+    "options": {},
+    "globalInputs": [
+      "input_rango"
+    ],
+    "structure": [
+      {
+        "item": "v_ultimo",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "w": 600,
+          "h": 280
+        }
+      },
+      {
+        "item": "v_latencia",
+        "type": "block",
+        "position": {
+          "x": 600,
+          "y": 0,
+          "w": 600,
+          "h": 280
+        }
+      },
+      {
+        "item": "v_volumen",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 280,
+          "w": 1200,
+          "h": 300
+        }
+      },
+      {
+        "item": "v_programadas",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 580,
+          "w": 1200,
+          "h": 320
+        }
+      }
+    ]
+  }
+}
+  ]]></definition>
+</dashboard>

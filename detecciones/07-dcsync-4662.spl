@@ -1,0 +1,16 @@
+# nombre: GDAT 07 - DCSync
+# kql: gdat-azure-sentinel-lab/biceps/queries/07-dcsync-4662.kql
+# mitre: T1003.006
+# tactica: CredentialAccess
+# severidad: high
+# cron: */5 * * * *
+# ventana: -7m@m -2m@m
+# descripcion: Uso de los derechos extendidos de replicacion (DS-Replication-Get-Changes y -All) por algo que no es un controlador de dominio. No emite IP: el 4662 lo escribe el propio DC.
+`gdat_win_security` EventCode=4662 ("1131f6aa-9c07-11d1-f79f-00c04fc2dcd2" OR "1131f6ad-9c07-11d1-f79f-00c04fc2dcd2")
+| eval CuentaNormalizada=`gdat_normalizar_cuenta(SubjectUserName)`
+| where NOT like(CuentaNormalizada, "%$")
+| lookup gdat_cuentas_replicacion.csv cuenta AS CuentaNormalizada OUTPUT cuenta AS legitima
+| where isnull(legitima)
+| eval HostCorto=`gdat_host_corto(Computer)`
+| stats count AS Intentos max(_time) AS Ultimo by CuentaNormalizada HostCorto
+| eval _time=Ultimo

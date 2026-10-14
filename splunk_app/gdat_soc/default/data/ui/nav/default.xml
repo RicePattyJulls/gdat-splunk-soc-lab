@@ -1,0 +1,14 @@
+<nav search_view="search" color="#5E2CA5">
+  <view name="gdat_cadena" default="true" />
+  <view name="gdat_salud" />
+  <view name="search" />
+  <collection label="Detecciones">
+    <saved source="unclassified" match="GDAT 0" />
+  </collection>
+  <collection label="Correlacion y RBA">
+    <saved source="unclassified" match="GDAT RBA" />
+    <saved source="unclassified" match="GDAT COR" />
+  </collection>
+  <view name="alerts" />
+  <view name="reports" />
+</nav>

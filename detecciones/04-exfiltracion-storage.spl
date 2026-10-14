@@ -1,0 +1,17 @@
+# nombre: GDAT 04 - Exfiltracion a Storage
+# kql: gdat-azure-sentinel-lab/biceps/queries/04-exfiltracion-storage.kql
+# mitre: T1567.002
+# tactica: Exfiltration
+# severidad: high
+# cron: */5 * * * *
+# ventana: -7m@m -2m@m
+# descripcion: Subida de blobs autenticada con clave de cuenta desde una IP que no es de administracion. El lookup gdat_mapa_ip_host traduce la IP publica de salida al host del lab, para que la alerta comparta la entidad Host con las del endpoint.
+index=gdat_cloud sourcetype=gdat:azure:storageblob OperationName=PutBlob AuthenticationType=AccountKey StatusCode=201
+| eval IPOrigen=mvindex(split(CallerIpAddress, ":"), 0)
+| lookup gdat_ips_admin.csv ip AS IPOrigen OUTPUT ip AS es_admin
+| where isnull(es_admin)
+| stats count AS Subidas sum(RequestBodySize) AS Bytes values(Uri) AS Ficheros min(_time) AS Inicio max(_time) AS Fin by IPOrigen AuthenticationType
+| eval Ficheros=mvindex(Ficheros, 0, 9)
+| eval HostAfectado="gdatstorage"
+| lookup gdat_mapa_ip_host.csv ip AS IPOrigen OUTPUT host AS HostOrigen
+| eval _time=Fin

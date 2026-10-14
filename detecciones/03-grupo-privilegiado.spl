@@ -1,0 +1,16 @@
+# nombre: GDAT 03 - Alta en grupo privilegiado
+# kql: gdat-azure-sentinel-lab/biceps/queries/03-grupo-privilegiado.kql
+# mitre: T1098
+# tactica: PrivilegeEscalation
+# severidad: high
+# cron: * * * * *
+# ventana: -2m@m -1m@m
+# descripcion: Alguien anade una cuenta a Domain Admins (-512) o a los administradores locales (S-1-5-32-544). En Sentinel era NRT; aqui corre cada minuto con la ventana desfasada un minuto.
+`gdat_win_security` EventCode IN (4728, 4732)
+| where like(TargetSid, "%-512") OR TargetSid="S-1-5-32-544"
+| rex field=MemberName "^CN=(?<MiembroAnadido>[^,]+)"
+| eval MiembroAnadido=lower(MiembroAnadido)
+| eval CuentaNormalizada=`gdat_normalizar_cuenta(SubjectUserName)`
+| eval HostCorto=`gdat_host_corto(Computer)`
+| eval GrupoObjetivo=if(TargetSid="S-1-5-32-544", "Administradores locales", "Domain Admins")
+| table _time HostCorto Computer CuentaNormalizada MiembroAnadido GrupoObjetivo TargetSid EventCode

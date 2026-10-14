@@ -1,0 +1,15 @@
+# nombre: GDAT 02 - Kerberoasting
+# kql: gdat-azure-sentinel-lab/biceps/queries/02-kerberoasting.kql
+# mitre: T1558.003
+# tactica: CredentialAccess
+# severidad: high
+# cron: */5 * * * *
+# ventana: -7m@m -2m@m
+# descripcion: Peticion de ticket de servicio con cifrado RC4 (0x17) contra una cuenta con SPN. Por si sola no prueba el ataque: hay sistemas antiguos que siguen pidiendo RC4.
+`gdat_win_security` EventCode=4769
+| where NOT like(ServiceName, "%$") AND lower(ServiceName)!="krbtgt"
+| where TicketEncryptionType="0x17"
+| eval IPOrigen=replace(IpAddress, "^::ffff:", "")
+| eval CuentaNormalizada=`gdat_normalizar_cuenta(TargetUserName)`
+| eval HostCorto=`gdat_host_corto(Computer)`
+| table _time HostCorto Computer CuentaNormalizada ServiceName IPOrigen TicketEncryptionType

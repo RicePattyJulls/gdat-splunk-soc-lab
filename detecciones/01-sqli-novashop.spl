@@ -1,0 +1,15 @@
+# nombre: GDAT 01 - SQL injection en NovaShop
+# kql: gdat-azure-sentinel-lab/biceps/queries/01-sqli-novashop.kql
+# mitre: T1190
+# tactica: InitialAccess
+# severidad: high
+# cron: */5 * * * *
+# ventana: -7m@m -2m@m
+# descripcion: Patron de inyeccion SQL registrado por la propia aplicacion en su log de seguridad. Filtra por la firma y no por el resultado, para incluir los tanteos que acaban en database_error.
+index=gdat_web sourcetype=novashop:json "novashop_security"
+| spath input=line
+| search kind=novashop_security event_type=product_search signature_match=true
+| eval IPOrigen=client_ip, Termino=search_term, Resultado=outcome
+| eval CuentaNormalizada=lower(if(isnull(user) OR user="" OR user="null", "anonimo", user))
+| eval HostAfectado="novashop"
+| table _time IPOrigen CuentaNormalizada HostAfectado Termino Resultado request_id

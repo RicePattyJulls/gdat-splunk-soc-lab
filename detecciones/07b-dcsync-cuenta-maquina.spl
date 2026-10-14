@@ -1,0 +1,16 @@
+# nombre: GDAT 07b - DCSync con cuenta de maquina
+# kql: (nueva; no existe en GDAT) mejora de 07-dcsync-4662.kql tras validar con splunk/attack_data
+# mitre: T1003.006
+# tactica: CredentialAccess
+# severidad: high
+# cron: */5 * * * *
+# ventana: -7m@m -2m@m
+# descripcion: Una cuenta de maquina ($) usa los derechos de replicacion en una sesion iniciada desde una IP que no es de un DC (lookup gdat_dcs). Cubre el punto ciego de la regla 07, que descarta todas las cuentas $. Cruza el 4662 con el 4624 de la misma sesion (LogonId); limite conocido: el inicio de sesion tiene que caer en la misma ventana.
+`gdat_win_security` ((EventCode=4662 ("1131f6aa-9c07-11d1-f79f-00c04fc2dcd2" OR "1131f6ad-9c07-11d1-f79f-00c04fc2dcd2")) OR EventCode=4624)
+| eval LogonId=if(tonumber(EventCode)=4662, SubjectLogonId, TargetLogonId), HostCorto=`gdat_host_corto(Computer)`
+| stats values(eval(if(tonumber(EventCode)=4662, SubjectUserName, null()))) AS Cuenta values(eval(if(tonumber(EventCode)=4624, replace(IpAddress, "^::ffff:", ""), null()))) AS IPOrigen count(eval(tonumber(EventCode)=4662)) AS Replicaciones max(_time) AS Ultimo by LogonId HostCorto
+| where Replicaciones > 0 AND like(Cuenta, "%$") AND isnotnull(IPOrigen)
+| lookup gdat_dcs.csv ip AS IPOrigen OUTPUT host AS origen_dc
+| where isnull(origen_dc)
+| eval CuentaNormalizada=`gdat_normalizar_cuenta(Cuenta)`, _time=Ultimo
+| table _time HostCorto CuentaNormalizada IPOrigen LogonId Replicaciones

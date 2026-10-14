@@ -1,0 +1,9 @@
+orden,regla,tactica,tecnica,nombre_tecnica,severidad
+1,GDAT 01 - SQL injection en NovaShop,InitialAccess,T1190,Exploit Public-Facing Application,high
+2,GDAT 06 - RDP entrante desde Internet,LateralMovement,T1021.001,Remote Desktop Protocol,medium
+3,GDAT 02 - Kerberoasting,CredentialAccess,T1558.003,Kerberoasting,high
+4,GDAT 03 - Alta en grupo privilegiado,PrivilegeEscalation,T1098,Account Manipulation,high
+5,GDAT 04 - Exfiltracion a Storage,Exfiltration,T1567.002,Exfiltration to Cloud Storage,high
+6,GDAT 07 - DCSync,CredentialAccess,T1003.006,DCSync,high
+6,GDAT 07b - DCSync con cuenta de maquina,CredentialAccess,T1003.006,DCSync,high
+7,GDAT 05 - Creacion sospechosa de recursos,DefenseEvasion,T1578.002,Create Cloud Instance (secundaria T1078.004),medium

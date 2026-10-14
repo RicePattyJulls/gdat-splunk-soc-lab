@@ -1,0 +1,18 @@
+# nombre: GDAT 06 - RDP entrante desde Internet
+# kql: gdat-azure-sentinel-lab/biceps/queries/06-rdp-entrante.kql
+# mitre: T1021.001
+# tactica: LateralMovement
+# severidad: medium
+# cron: */5 * * * *
+# ventana: -7m@m -2m@m
+# descripcion: Inicio de sesion tipo 10 desde una IP publica. Sospechoso, no concluyente por si solo: es la regla puente (IP con la SQLi, cuenta con Kerberoasting y DCSync, host con la exfiltracion).
+`gdat_win_security` EventCode=4624 LogonType=10
+| eval IPOrigen=replace(IpAddress, "^::ffff:", "")
+| where isnotnull(IPOrigen) AND IPOrigen!="" AND IPOrigen!="-"
+| where NOT `gdat_ip_privada(IPOrigen)`
+| eval CuentaNormalizada=`gdat_normalizar_cuenta(TargetUserName)`
+| where NOT like(CuentaNormalizada, "%$")
+| lookup gdat_cuentas_admin.csv cuenta AS CuentaNormalizada OUTPUT cuenta AS es_admin
+| where isnull(es_admin)
+| eval HostCorto=`gdat_host_corto(Computer)`
+| table _time HostCorto Computer CuentaNormalizada IPOrigen LogonType

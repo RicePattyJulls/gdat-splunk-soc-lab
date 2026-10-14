@@ -1,0 +1,7 @@
+# Secretos y estado local: no se publican nunca
+.env.local
+splunk_app/gdat_soc/local/
+generador/envios.jsonl
+__pycache__/
+datos_externos/
+.novashop.local

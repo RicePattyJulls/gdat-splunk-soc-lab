@@ -1,0 +1,231 @@
+<dashboard version="2" theme="dark">
+  <label>GDAT - Cadena de ataque</label>
+  <description>SQLi en NovaShop hasta DCSync: alertas, correlacion por entidad, RBA y MITRE.</description>
+  <definition><![CDATA[
+{
+  "title": "GDAT - Cadena de ataque",
+  "description": "SQLi en NovaShop hasta DCSync: alertas, correlacion por entidad, RBA y MITRE.",
+  "inputs": {
+    "input_rango": {
+      "type": "input.timerange",
+      "title": "Rango de tiempo",
+      "options": {
+        "token": "rango",
+        "defaultValue": "-24h@h,now"
+      }
+    }
+  },
+  "defaults": {
+    "dataSources": {
+      "ds.search": {
+        "options": {
+          "queryParameters": {
+            "earliest": "$rango.earliest$",
+            "latest": "$rango.latest$"
+          }
+        }
+      }
+    }
+  },
+  "dataSources": {
+    "ds_alertas": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=gdat_alertas | stats count"
+      }
+    },
+    "ds_reglas": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=gdat_alertas | stats dc(regla) AS reglas"
+      }
+    },
+    "ds_incidentes": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=gdat_riesgo | stats sum(risk_score) AS puntuacion dc(mitre) AS tecnicas by risk_object | where puntuacion>=100 AND tecnicas>=2 | stats count"
+      }
+    },
+    "ds_por_regla": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=gdat_alertas | stats count AS alertas by regla | sort regla"
+      }
+    },
+    "ds_riesgo": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=gdat_riesgo | stats sum(risk_score) AS puntuacion dc(mitre) AS tecnicas values(mitre) AS mitre by risk_object risk_object_type | sort - puntuacion"
+      }
+    },
+    "ds_entidades": {
+      "type": "ds.search",
+      "options": {
+        "query": "index=gdat_alertas | eval HostEntidad=coalesce(HostCorto, HostOrigen, HostAfectado) | eval entidad=mvappend(if(isnotnull(CuentaNormalizada) AND CuentaNormalizada!=\"anonimo\", \"Account:\".CuentaNormalizada, null()), if(isnotnull(MiembroAnadido), \"Account:\".MiembroAnadido, null()), if(isnotnull(IPOrigen) AND IPOrigen!=\"\", \"IP:\".IPOrigen, null()), if(isnotnull(HostEntidad), \"Host:\".HostEntidad, null())) | mvexpand entidad | stats dc(regla) AS NumReglas values(regla) AS Alertas by entidad | where NumReglas > 1 | sort - NumReglas"
+      }
+    },
+    "ds_timeline": {
+      "type": "ds.search",
+      "options": {
+        "query": "(`gdat_win_security` EventCode IN (4624, 4662, 4688, 4728, 4769)) OR (index=gdat_cloud sourcetype=gdat:azure:storageblob OperationName=PutBlob) OR (index=gdat_web \"candidate_injection_executed\") | eval Fuente=case(index=\"gdat_win\", \"SecurityEvent\", index=\"gdat_cloud\", \"StorageBlobLogs\", index=\"gdat_web\", \"NovaShop\") | eval Detalle=case(Fuente=\"SecurityEvent\", EventCode.\" \".coalesce(TargetUserName, SubjectUserName).\" \".coalesce(CommandLine, ServiceName, MemberName, IpAddress, \"\"), Fuente=\"StorageBlobLogs\", OperationName.\" \".Uri.\" desde \".CallerIpAddress, true(), \"SQLi ejecutada\") | eval host=if(Fuente=\"NovaShop\", \"novashop\", host) | table _time Fuente host Detalle | sort 0 _time"
+      }
+    },
+    "ds_mitre": {
+      "type": "ds.search",
+      "options": {
+        "query": "| inputlookup gdat_mitre.csv | append [search index=gdat_alertas | stats count AS alertas by mitre | rename mitre AS tecnica] | stats values(orden) AS orden values(tactica) AS tactica values(nombre_tecnica) AS nombre_tecnica values(regla) AS regla sum(alertas) AS alertas by tecnica | where isnotnull(orden) | fillnull value=0 alertas | eval estado=if(alertas>0, \"Detectada\", \"Sin alertas\") | sort orden | table tactica tecnica nombre_tecnica regla alertas estado"
+      }
+    }
+  },
+  "visualizations": {
+    "v_alertas": {
+      "type": "splunk.singlevalue",
+      "title": "Alertas (gdat_alertas)",
+      "dataSources": {
+        "primary": "ds_alertas"
+      }
+    },
+    "v_reglas": {
+      "type": "splunk.singlevalue",
+      "title": "Reglas disparadas (de 8)",
+      "dataSources": {
+        "primary": "ds_reglas"
+      }
+    },
+    "v_incidentes": {
+      "type": "splunk.singlevalue",
+      "title": "Entidades sobre el umbral RBA",
+      "dataSources": {
+        "primary": "ds_incidentes"
+      },
+      "description": "100 puntos o mas y 2 o mas tecnicas"
+    },
+    "v_por_regla": {
+      "type": "splunk.bar",
+      "title": "Alertas por regla",
+      "dataSources": {
+        "primary": "ds_por_regla"
+      }
+    },
+    "v_riesgo": {
+      "type": "splunk.table",
+      "title": "Riesgo acumulado por entidad (RBA)",
+      "dataSources": {
+        "primary": "ds_riesgo"
+      }
+    },
+    "v_entidades": {
+      "type": "splunk.table",
+      "title": "Entidades compartidas entre reglas",
+      "dataSources": {
+        "primary": "ds_entidades"
+      },
+      "description": "Lo que en Sentinel une las alertas en un incidente"
+    },
+    "v_mitre": {
+      "type": "splunk.table",
+      "title": "Cobertura MITRE ATT&CK",
+      "dataSources": {
+        "primary": "ds_mitre"
+      }
+    },
+    "v_timeline": {
+      "type": "splunk.table",
+      "title": "Linea de tiempo del ataque",
+      "dataSources": {
+        "primary": "ds_timeline"
+      }
+    }
+  },
+  "layout": {
+    "type": "grid",
+    "options": {},
+    "globalInputs": [
+      "input_rango"
+    ],
+    "structure": [
+      {
+        "item": "v_alertas",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "w": 400,
+          "h": 130
+        }
+      },
+      {
+        "item": "v_reglas",
+        "type": "block",
+        "position": {
+          "x": 400,
+          "y": 0,
+          "w": 400,
+          "h": 130
+        }
+      },
+      {
+        "item": "v_incidentes",
+        "type": "block",
+        "position": {
+          "x": 800,
+          "y": 0,
+          "w": 400,
+          "h": 130
+        }
+      },
+      {
+        "item": "v_por_regla",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 130,
+          "w": 600,
+          "h": 320
+        }
+      },
+      {
+        "item": "v_riesgo",
+        "type": "block",
+        "position": {
+          "x": 600,
+          "y": 130,
+          "w": 600,
+          "h": 320
+        }
+      },
+      {
+        "item": "v_entidades",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 450,
+          "w": 600,
+          "h": 300
+        }
+      },
+      {
+        "item": "v_mitre",
+        "type": "block",
+        "position": {
+          "x": 600,
+          "y": 450,
+          "w": 600,
+          "h": 300
+        }
+      },
+      {
+        "item": "v_timeline",
+        "type": "block",
+        "position": {
+          "x": 0,
+          "y": 750,
+          "w": 1200,
+          "h": 450
+        }
+      }
+    ]
+  }
+}
+  ]]></definition>
+</dashboard>
